@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import {
   createNamedThread,
+  getSelectedTranscript,
   launchDesktop,
   makeUserDataDir,
   makeWorkspace,
@@ -121,8 +122,12 @@ test("an extension tool's row shows the label it registered, live and after rest
       "The printer is on fire.",
     );
     await expectLabelledRow(window);
-    // The reply summary counts it as a tool, not as an explored file.
-    await expect(window.getByTestId("transcript")).toContainText("Used 1 tool");
+    // The finished run adds no tally row below the reply: tool rows and groups summarize
+    // themselves where the calls are.
+    await expect(window.getByTestId("send")).not.toHaveAttribute("aria-label", "Stop run");
+    expect(
+      (await getSelectedTranscript(window))?.transcript.filter((item) => item.kind === "summary"),
+    ).toHaveLength(0);
     await expect(window.getByTestId("transcript")).not.toContainText("Explored");
   } finally {
     await firstRun.close();

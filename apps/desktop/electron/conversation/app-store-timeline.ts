@@ -25,9 +25,6 @@ import {
 
 export interface RunMetrics {
   readonly startedAt: string;
-  toolCount: number;
-  searchCount: number;
-  fileCount: number;
 }
 
 interface TimelineRuntimeState {
@@ -199,12 +196,7 @@ export function applyTimelineEvent(
         !state.runningSinceBySession.has(key)
       ) {
         state.runningSinceBySession.set(key, event.timestamp);
-        state.runMetricsBySession.set(key, {
-          startedAt: event.timestamp,
-          toolCount: 0,
-          searchCount: 0,
-          fileCount: 0,
-        });
+        state.runMetricsBySession.set(key, { startedAt: event.timestamp });
         const activity = makeActivityItem("Working…");
         state.activeWorkingActivityBySession.set(key, activity.id);
         transcript.push(activity);
@@ -217,22 +209,8 @@ export function applyTimelineEvent(
       return;
     case "toolStarted": {
       clearActiveAssistantMessage(state.activeAssistantMessageBySession, event.sessionRef);
-      const metrics = currentMetrics ?? {
-        startedAt: event.timestamp,
-        toolCount: 0,
-        searchCount: 0,
-        fileCount: 0,
-      };
-      metrics.toolCount += 1;
+      if (!currentMetrics) state.runMetricsBySession.set(key, { startedAt: event.timestamp });
       const extensionLabel = state.extensionToolLabels(event.sessionRef).get(event.toolName);
-      // An extension's tool is counted as a tool: its name says nothing about files or searches.
-      if (extensionLabel === undefined && looksLikeSearch(event.toolName, event.input)) {
-        metrics.searchCount += 1;
-      }
-      if (extensionLabel === undefined && looksLikeFileExplore(event.toolName, event.input)) {
-        metrics.fileCount += 1;
-      }
-      state.runMetricsBySession.set(key, metrics);
       upsertToolRow(
         transcript,
         event.callId,
@@ -269,16 +247,10 @@ export function applyTimelineEvent(
       );
       break;
     case "runCompleted": {
-      const metrics = currentMetrics;
       clearRunState(transcript, key, event.sessionRef, state);
-      if (metrics) {
-        const label = summaryLabel(metrics);
-        if (label) {
-          transcript.push(makeSummaryItem(label, { presentation: "inline" }));
-        }
-        // No "Worked for" row here: the renderer derives one per turn from
-        // timestamps and places it above the turn's final reply.
-      } else {
+      // A run adds no row of its own: the renderer folds its tool calls into a group row and
+      // derives "Worked for" per turn from timestamps, above the turn's final reply.
+      if (!currentMetrics) {
         transcript.push(
           makeSummaryItem("Completed", {
             presentation: "divider",
@@ -522,20 +494,6 @@ function looksLikeFileExplore(toolName: string, input: unknown): boolean {
     return true;
   }
   return typeof input === "string" && /\/|\.md|\.ts|file/i.test(input);
-}
-
-function summaryLabel(metrics: RunMetrics): string | undefined {
-  const parts: string[] = [];
-  if (metrics.fileCount > 0) {
-    parts.push(`Explored ${metrics.fileCount} file${metrics.fileCount === 1 ? "" : "s"}`);
-  }
-  if (metrics.searchCount > 0) {
-    parts.push(`${metrics.searchCount} search${metrics.searchCount === 1 ? "" : "es"}`);
-  }
-  if (parts.length === 0 && metrics.toolCount > 0) {
-    parts.push(`Used ${metrics.toolCount} tool${metrics.toolCount === 1 ? "" : "s"}`);
-  }
-  return parts.length > 0 ? parts.join(", ") : undefined;
 }
 
 function workedForLabel(startedAt: string, endedAt: string): string {

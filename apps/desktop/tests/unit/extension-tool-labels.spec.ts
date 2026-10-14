@@ -72,7 +72,7 @@ test("an extension row shows its label and the call's main argument or plain val
   expect(extensionToolRowLabel("List todos", { filter: { done: true } })).toBe("List todos");
 });
 
-test("a live extension tool call uses its label and counts as a tool, not a file", () => {
+test("a live extension tool call uses its label", () => {
   const transcript = new Map<string, readonly TranscriptMessage[]>();
   const labels = new Map([["github_read", "Read GitHub issue or PR"]]);
   const state: Parameters<typeof applyTimelineEvent>[2] = {
@@ -112,11 +112,6 @@ test("a live extension tool call uses its label and counts as a tool, not a file
     "Read GitHub issue or PR: issue 7",
     "Read src/app.ts",
   ]);
-  expect(state.runMetricsBySession.get(key)).toMatchObject({
-    toolCount: 2,
-    fileCount: 1,
-    searchCount: 0,
-  });
 });
 
 test("a saved extension tool call reloads with its label", () => {

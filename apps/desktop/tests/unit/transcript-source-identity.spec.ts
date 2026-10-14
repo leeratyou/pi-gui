@@ -32,12 +32,7 @@ function fixture() {
 
 test("persisted source identity attaches to its ended live row without replacing display IDs or metrics", () => {
   const h = fixture();
-  h.state.runMetricsBySession.set(key, {
-    startedAt: timestamp,
-    toolCount: 3,
-    searchCount: 1,
-    fileCount: 2,
-  });
+  h.state.runMetricsBySession.set(key, { startedAt: timestamp });
   h.append("First response");
   const first = h.transcript.get(key)![0]!;
   h.ended();
@@ -50,7 +45,7 @@ test("persisted source identity attaches to its ended live row without replacing
     { ...first, sourceMessageId: "native-first" },
     { ...second, sourceMessageId: "native-second" },
   ]);
-  expect(h.state.runMetricsBySession.get(key)?.toolCount).toBe(3);
+  expect(h.state.runMetricsBySession.get(key)?.startedAt).toBe(timestamp);
   expect(h.state.pendingAssistantMessageBySession.has(key)).toBe(false);
 });
 
