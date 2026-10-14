@@ -237,7 +237,7 @@ test("maintenance: skills, pin, thread list, worktree, queued follow-ups", async
     await close();
     phase = "follow-ups";
     await launch([followWorkspace], join(privateRoot, "follow-profile"));
-    await test.step("Queue Enter and steer with the platform-modified Enter", async () => {
+    await test.step("Steer with Enter and queue with the platform-modified Enter", async () => {
       await startThread(
         'Use your bash or shell tool to run `python3 - <<\'PY\'\nimport time\nprint("queue-start")\ntime.sleep(8)\nprint("queue-end")\nPY` and, after the tool call, reply with exactly BASELINE_DONE.',
       );
@@ -245,7 +245,7 @@ test("maintenance: skills, pin, thread list, worktree, queued follow-ups", async
       await composer.fill(
         "After the current run fully finishes, reply with exactly FOLLOW_UP_DONE.",
       );
-      await composer.press("Enter");
+      await composer.press(desktopShortcut("Enter"));
       await expect(
         page.getByTestId("queued-composer-message").filter({ hasText: "FOLLOW_UP_DONE" }),
       ).toHaveCount(1);
@@ -253,7 +253,7 @@ test("maintenance: skills, pin, thread list, worktree, queued follow-ups", async
       await composer.fill(
         "Change your pending final answer for the current run to exactly STEER_DONE.",
       );
-      await composer.press(desktopShortcut("Enter"));
+      await composer.press("Enter");
       await expect(
         page.getByTestId("queued-composer-message").filter({ hasText: "STEER_DONE" }),
       ).toHaveCount(0);

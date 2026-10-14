@@ -357,7 +357,7 @@ export function useSessionComposer(params: UseSessionComposerParams) {
       selectedSession?.status === "running"
     ) {
       event.preventDefault();
-      submitComposerDraft({ deliverAs: event.metaKey || event.ctrlKey ? "steer" : "followUp" });
+      submitComposerDraft({ deliverAs: event.metaKey || event.ctrlKey ? "followUp" : "steer" });
       return;
     }
 

@@ -20,7 +20,7 @@ function assistantMessages(
     .map((item) => item.text.trim());
 }
 
-test("queues follow-ups with Enter and steers the current run with Cmd+Enter", async () => {
+test("steers the current run with Enter and queues follow-ups with Cmd+Enter", async () => {
   test.setTimeout(240_000);
   const realAuth = getRealAuthConfig();
   test.skip(!realAuth.enabled, realAuth.skipReason);
@@ -63,7 +63,7 @@ test("queues follow-ups with Enter and steers the current run with Cmd+Enter", a
 
     await composer.fill("After the current run fully finishes, reply with exactly FOLLOW_UP_DONE.");
     await expect(sendButton).toHaveAttribute("aria-label", "Send message");
-    await composer.press("Enter");
+    await composer.press(desktopShortcut("Enter"));
     await expect(sendButton).toHaveAttribute("aria-label", "Stop run");
     await expect(
       window.getByTestId("queued-composer-message").filter({ hasText: "FOLLOW_UP_DONE" }),
@@ -74,7 +74,7 @@ test("queues follow-ups with Enter and steers the current run with Cmd+Enter", a
       "Change your pending final answer for the current run to exactly STEER_DONE.",
     );
     await expect(sendButton).toHaveAttribute("aria-label", "Send message");
-    await composer.press(desktopShortcut("Enter"));
+    await composer.press("Enter");
     await expect(
       window.getByTestId("queued-composer-message").filter({ hasText: "STEER_DONE" }),
     ).toHaveCount(0);

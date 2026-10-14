@@ -294,7 +294,7 @@ test("delineates queued follow-ups and submitted steers in the timeline", async 
 
     const composer = window.getByTestId("composer");
     await composer.fill("Steer the current run now");
-    await composer.press(desktopShortcut("Enter"));
+    await composer.press("Enter");
 
     await expect(
       window
@@ -323,6 +323,17 @@ test("delineates queued follow-ups and submitted steers in the timeline", async 
         `user:${queuedFollowUp.text}`,
         "assistant:Answering the queued follow-up",
       ]);
+
+    await composer.fill("Queue this for after the run");
+    await composer.press(desktopShortcut("Enter"));
+    await expect(
+      window
+        .getByTestId("queued-composer-message")
+        .filter({ hasText: "Queue this for after the run" }),
+    ).toHaveCount(1);
+    await expect(window.getByTestId("transcript")).not.toContainText(
+      "Queue this for after the run",
+    );
   } finally {
     await harness.close();
   }

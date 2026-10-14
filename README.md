@@ -62,8 +62,8 @@ the review tab, your worktrees, and tabs from desktop extensions. Each task keep
 | <kbd>⌘</kbd> <kbd>J</kbd>                          | Toggle the terminal                   |
 | <kbd>⌘</kbd> <kbd>R</kbd>                          | Toggle the Review tab                 |
 | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>B</kbd>             | Show or hide the workbench            |
-| <kbd>Enter</kbd> while a run is going              | Queue a follow-up                     |
-| <kbd>⌘</kbd> <kbd>Enter</kbd> while a run is going | Steer the current run                 |
+| <kbd>Enter</kbd> while a run is going              | Steer the current run                 |
+| <kbd>⌘</kbd> <kbd>Enter</kbd> while a run is going | Queue a follow-up                     |
 
 ### And the rest
 

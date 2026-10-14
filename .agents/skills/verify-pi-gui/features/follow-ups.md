@@ -4,21 +4,21 @@ Users can queue another prompt while an agent works or steer the current run. Th
 
 ## Sub-features
 
-- `follow-up-queue`: Enter queues a prompt during an active run.
-- `follow-up-steer`: the platform-modified Enter shortcut redirects the current run.
+- `follow-up-queue`: the platform-modified Enter shortcut queues a prompt during an active run.
+- `follow-up-steer`: Enter redirects the current run.
 - `follow-up-order`: queued work runs after the current response, with no stuck queue entries.
 
 ## How to get to it (user POV)
 
-- While a thread runs, type in its composer and press Enter to queue.
-- Use Cmd+Enter on macOS (Control+Enter elsewhere) to steer the active run. A steer is added to the transcript at once and never appears in the queue list.
+- While a thread runs, type in its composer and press Enter to steer the active run. A steer is added to the transcript at once and never appears in the queue list.
+- Use Cmd+Enter on macOS (Control+Enter elsewhere) to queue.
 - Clicking the send button with text in the composer also queues. Each queued item has Steer, Edit and Delete buttons, except that a queued message carrying Add to Chat annotations reads "<text> · N annotations" (or "1 annotation") and has no Edit; its Delete label uses the raw message text, not that preview. Stop run (empty composer) clears the whole queue.
 
 ## Driving it with Playwright
 
 Preconditions: explicitly enabled real auth and a working provider/model. Default conversation proof covers ordinary send/stop, not queue/steer. Visible maintenance proof is `scripts/prove.sh --maintenance`.
 
-- **Visible recipe:** `.agents/skills/verify-pi-gui/scripts/prove.sh --maintenance` launches without test mode or test hooks. After a long tool run starts, type a follow-up and press Enter; require a `queued-composer-message` containing that prompt. Type a steer marker and press the platform-modified Enter shortcut (`Control+Enter` here, `Cmd+Enter` on macOS). Require `STEER_DONE` and `FOLLOW_UP_DONE` once each in assistant-only timeline text, the steered reply before the follow-up, idle, and no remaining queued messages. The per-item Steer/Edit/Delete buttons and Stop clearing the queue are not driven.
+- **Visible recipe:** `.agents/skills/verify-pi-gui/scripts/prove.sh --maintenance` launches without test mode or test hooks. After a long tool run starts, type a follow-up and press the platform-modified Enter shortcut (`Control+Enter` here, `Cmd+Enter` on macOS); require a `queued-composer-message` containing that prompt. Type a steer marker and press Enter. Require `STEER_DONE` and `FOLLOW_UP_DONE` once each in assistant-only timeline text, the steered reply before the follow-up, idle, and no remaining queued messages. The per-item Steer/Edit/Delete buttons and Stop clearing the queue are not driven.
 - **Existing live spec:** `pnpm --filter @pi-gui/desktop run test:e2e:runner apps/desktop/tests/live/queued-messages.spec.ts` uses `PI_APP_REAL_AUTH=1` and `PI_APP_REAL_AUTH_SOURCE_DIR`. It currently launches in background mode; do not treat it as the visible proof.
 
 ## Gotchas

@@ -20,7 +20,7 @@ Record exact feature/entry point, command, result and evidence directory. `compl
 | ---------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Core       | [Conversations](conversations.md)               | Default real-provider proof: send, streaming, completion, tool, stop                                         |
 | Core       | [Thread continuity](thread-continuity.md)       | Default proof: switch while running, isolation, background completion, drafts, restart, archive/restore      |
-| Next       | [Queued follow-ups and steering](follow-ups.md) | `--maintenance`: visible Enter-queue and modified-Enter steer with real auth                                 |
+| Next       | [Queued follow-ups and steering](follow-ups.md) | `--maintenance`: visible modified-Enter queue and Enter steer with real auth                                 |
 | Next       | [Folders and threads](navigation.md)            | `--maintenance`: New thread until Show more Today, and pin/unpin while a run is going                        |
 | Next       | [Archive and restore](archive.md)               | Default proof on a real conversation; core spec adds hover/group checks                                      |
 | Supporting | [Settings](settings.md)                         | `--smoke`: visible navigation and preference restart                                                         |

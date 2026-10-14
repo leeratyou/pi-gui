@@ -42,8 +42,8 @@ const SHORTCUT_GROUPS: readonly {
   {
     title: "Composer",
     shortcuts: [
-      { title: "Send message, or queue it during a run", modifiers: [], key: "Enter" },
-      { title: "Steer the running agent", modifiers: ["Mod"], key: "Enter" },
+      { title: "Send message, or steer the running agent", modifiers: [], key: "Enter" },
+      { title: "Queue a follow-up during a run", modifiers: ["Mod"], key: "Enter" },
       { title: "New line", modifiers: ["Shift"], key: "Enter" },
     ],
   },
