@@ -34,6 +34,8 @@ interface ThreadSearchModel {
   readonly matchCount: number;
   readonly activeIndex: number;
   readonly inputRef: RefObject<HTMLInputElement | null>;
+  readonly revealedToolGroups: ReadonlySet<string>;
+  readonly releaseToolGroup: (id: string) => void;
   readonly search: (query: string) => void;
   readonly goToMatch: (direction: 1 | -1) => void;
   readonly close: () => void;
@@ -106,14 +108,18 @@ export function ConversationTimeline({
     [],
   );
   // Only what the user chose: a group nobody toggled follows its tools (see TimelineItem), and
-  // streaming never changes a choice, so a group never opens or folds by itself.
+  // streaming never changes a choice, so a group never opens or folds by itself. Search opens
+  // groups on top of these choices until it closes; a toggle takes a group back from search.
   const [toolGroupExpansion, setToolGroupExpansion] = useState<ReadonlyMap<string, boolean>>(
     () => new Map(),
   );
+  const { releaseToolGroup } = threadSearch;
   const toggleToolGroup = useCallback(
-    (id: string, expanded: boolean) =>
-      setToolGroupExpansion((current) => new Map(current).set(id, expanded)),
-    [],
+    (id: string, expanded: boolean) => {
+      releaseToolGroup(id);
+      setToolGroupExpansion((current) => new Map(current).set(id, expanded));
+    },
+    [releaseToolGroup],
   );
   useLayoutEffect(() => {
     const tools = transcript.filter((item) => item.kind === "tool");
@@ -190,6 +196,8 @@ export function ConversationTimeline({
                     onToggleToolCall={toggleToolCall}
                     toolGroupExpansion={toolGroupExpansion}
                     onToggleToolGroup={toggleToolGroup}
+                    searchOpen={threadSearch.isOpen}
+                    toolGroupRevealed={threadSearch.revealedToolGroups.has(item.id)}
                     onViewFileInDiff={onViewFileInDiff}
                     onOpenTurnChange={onOpenTurnChange}
                     sourceMessageIndex={renderedMessageIndexById.get(item.id)}
@@ -303,6 +311,8 @@ interface MeasuredTimelineItemProps {
   readonly onToggleToolCall: (callId: string) => void;
   readonly toolGroupExpansion: ReadonlyMap<string, boolean>;
   readonly onToggleToolGroup: (id: string, expanded: boolean) => void;
+  readonly searchOpen: boolean;
+  readonly toolGroupRevealed: boolean;
   readonly onViewFileInDiff?: (path: string) => void;
   readonly onOpenTurnChange?: OpenTurnChange;
   readonly sourceMessageIndex?: number;
@@ -326,6 +336,8 @@ function MeasuredTimelineItemBase({
   onToggleToolCall,
   toolGroupExpansion,
   onToggleToolGroup,
+  searchOpen,
+  toolGroupRevealed,
   onViewFileInDiff,
   onOpenTurnChange,
   sourceMessageIndex,
@@ -376,6 +388,8 @@ function MeasuredTimelineItemBase({
           onToggleToolCall={onToggleToolCall}
           toolGroupExpansion={toolGroupExpansion}
           onToggleToolGroup={onToggleToolGroup}
+          searchOpen={searchOpen}
+          toolGroupRevealed={toolGroupRevealed}
           onViewFileInDiff={onViewFileInDiff}
           onOpenTurnChange={onOpenTurnChange}
           sourceMessageIndex={sourceMessageIndex}
@@ -478,6 +492,8 @@ function areMeasuredTimelineItemPropsEqual(
     prev.onToggleToolCall === next.onToggleToolCall &&
     prev.toolGroupExpansion === next.toolGroupExpansion &&
     prev.onToggleToolGroup === next.onToggleToolGroup &&
+    prev.searchOpen === next.searchOpen &&
+    prev.toolGroupRevealed === next.toolGroupRevealed &&
     prev.onViewFileInDiff === next.onViewFileInDiff &&
     prev.onOpenTurnChange === next.onOpenTurnChange &&
     prev.sourceMessageIndex === next.sourceMessageIndex &&

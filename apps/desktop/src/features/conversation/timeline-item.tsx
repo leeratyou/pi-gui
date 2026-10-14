@@ -54,6 +54,8 @@ export function TimelineItem({
   onToggleToolCall,
   toolGroupExpansion,
   onToggleToolGroup,
+  searchOpen = false,
+  toolGroupRevealed = false,
   onViewFileInDiff,
   sourceMessageIndex,
   onForkFromMessage,
@@ -70,6 +72,10 @@ export function TimelineItem({
   readonly onToggleToolCall?: (callId: string) => void;
   readonly toolGroupExpansion?: ReadonlyMap<string, boolean>;
   readonly onToggleToolGroup?: (id: string, expanded: boolean) => void;
+  /** Thread search is open: a folded group keeps its calls in the DOM, hidden, for search. */
+  readonly searchOpen?: boolean;
+  /** Thread search opened this group to show a match; that wins over the user's choice. */
+  readonly toolGroupRevealed?: boolean;
   readonly onViewFileInDiff?: (path: string) => void;
   readonly sourceMessageIndex?: number;
   readonly onForkFromMessage?: (messageIndex: number, preview?: string) => void;
@@ -117,9 +123,11 @@ export function TimelineItem({
           // A run that grew around a tool whose output is open stays open, so the output the
           // user is reading never folds away under them.
           expanded={
-            toolGroupExpansion?.get(item.id) ??
-            item.tools.some((tool) => expandedToolCallIds?.has(tool.callId))
+            toolGroupRevealed ||
+            (toolGroupExpansion?.get(item.id) ??
+              item.tools.some((tool) => expandedToolCallIds?.has(tool.callId)))
           }
+          searchOpen={searchOpen}
           onToggle={onToggleToolGroup}
           expandedToolCallIds={expandedToolCallIds}
           onToggleToolCall={onToggleToolCall}
@@ -437,6 +445,7 @@ function TimelineToolCallItem({
 function TimelineToolGroupItem({
   item,
   expanded,
+  searchOpen,
   onToggle,
   expandedToolCallIds,
   onToggleToolCall,
@@ -444,6 +453,7 @@ function TimelineToolGroupItem({
 }: {
   readonly item: TimelineToolGroup;
   readonly expanded: boolean;
+  readonly searchOpen: boolean;
   readonly onToggle?: (id: string, expanded: boolean) => void;
   readonly expandedToolCallIds?: ReadonlySet<string>;
   readonly onToggleToolCall?: (callId: string) => void;
@@ -511,8 +521,10 @@ function TimelineToolGroupItem({
           ))}
         </div>
       ) : null}
-      {expanded ? (
-        <div className="timeline-tool-group__items">
+      {expanded || searchOpen ? (
+        // Folded while search is open, the calls stay in the DOM but hidden: search can count a
+        // match inside and open this group (by its id) to show it.
+        <div className="timeline-tool-group__items" data-tool-group-id={item.id} hidden={!expanded}>
           {item.tools.map((tool) => (
             <TimelineToolCallItem
               key={tool.callId}

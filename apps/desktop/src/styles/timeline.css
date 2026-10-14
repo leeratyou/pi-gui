@@ -556,6 +556,10 @@
   padding-left: 22px;
 }
 
+.timeline-tool-group__items[hidden] {
+  display: none;
+}
+
 .timeline-tool__body {
   margin-top: 6px;
   border: 1px solid var(--border);

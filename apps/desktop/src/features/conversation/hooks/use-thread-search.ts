@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+
+const NO_TOOL_GROUPS: ReadonlySet<string> = new Set();
 
 export function useThreadSearch(
   timelinePaneRef: React.RefObject<HTMLDivElement | null>,
@@ -9,6 +12,8 @@ export function useThreadSearch(
   const [query, setQuery] = useState("");
   const [matchCount, setMatchCount] = useState(0);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // Tool groups opened to show a match. They fold back when search closes.
+  const [revealedToolGroups, setRevealedToolGroups] = useState(NO_TOOL_GROUPS);
   const matchElements = useRef<HTMLElement[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,6 +33,29 @@ export function useThreadSearch(
     setMatchCount(0);
     setActiveIndex(-1);
   }, [timelinePaneRef]);
+
+  // A match inside a folded tool group sits in its hidden calls. Open that group first, so the
+  // match has a position to navigate to.
+  const showMatch = useCallback(
+    (element: HTMLElement) => {
+      const group = element.closest<HTMLElement>("[data-tool-group-id][hidden]")?.dataset
+        .toolGroupId;
+      if (group) flushSync(() => setRevealedToolGroups((current) => new Set(current).add(group)));
+      navigateToElement(element);
+    },
+    [navigateToElement],
+  );
+
+  const releaseToolGroup = useCallback(
+    (id: string) =>
+      setRevealedToolGroups((current) => {
+        if (!current.has(id)) return current;
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      }),
+    [],
+  );
 
   const searchImmediate = useCallback(
     (q: string) => {
@@ -87,10 +115,10 @@ export function useThreadSearch(
       if (first) {
         setActiveIndex(0);
         first.className = "thread-find-active";
-        navigateToElement(first);
+        showMatch(first);
       }
     },
-    [clearMarks, timelinePaneRef, navigateToElement],
+    [clearMarks, timelinePaneRef, showMatch],
   );
 
   const search = useCallback(
@@ -122,10 +150,10 @@ export function useThreadSearch(
       setActiveIndex(next);
       if (nextEl) {
         nextEl.className = "thread-find-active";
-        navigateToElement(nextEl);
+        showMatch(nextEl);
       }
     },
-    [activeIndex, navigateToElement],
+    [activeIndex, showMatch],
   );
 
   const open = useCallback(() => {
@@ -140,6 +168,7 @@ export function useThreadSearch(
     setQuery("");
     if (debounceRef.current) clearTimeout(debounceRef.current);
     clearMarks();
+    setRevealedToolGroups(NO_TOOL_GROUPS);
   }, [clearMarks, setSearchMode]);
 
   // Clean up debounce timer on unmount
@@ -151,7 +180,30 @@ export function useThreadSearch(
   );
 
   return useMemo(
-    () => ({ isOpen, query, matchCount, activeIndex, inputRef, open, close, search, goToMatch }),
-    [isOpen, query, matchCount, activeIndex, open, close, search, goToMatch],
+    () => ({
+      isOpen,
+      query,
+      matchCount,
+      activeIndex,
+      inputRef,
+      revealedToolGroups,
+      releaseToolGroup,
+      open,
+      close,
+      search,
+      goToMatch,
+    }),
+    [
+      isOpen,
+      query,
+      matchCount,
+      activeIndex,
+      revealedToolGroups,
+      releaseToolGroup,
+      open,
+      close,
+      search,
+      goToMatch,
+    ],
   );
 }

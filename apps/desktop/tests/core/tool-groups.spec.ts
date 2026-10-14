@@ -2,11 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 import type { SessionDriverEvent, SessionRef } from "@pi-gui/session-driver";
 import {
   createNamedThread,
+  desktopShortcut,
   emitTestSessionEvents,
   getDesktopState,
   launchDesktop,
   makeUserDataDir,
   makeWorkspace,
+  streamAssistantDeltas,
   waitForTimelineLayout,
   waitForWorkspaceByPath,
 } from "../helpers/electron-app";
@@ -136,6 +138,83 @@ test("consecutive tool calls fold into one row that expands to the ordinary tool
     await expect(toolRows).toHaveCount(0);
     await groupHeader.click();
     await expect(toolRow("src/b.ts").locator(".timeline-tool__body")).toContainText("R2_OUTPUT");
+  } finally {
+    await harness.close();
+  }
+});
+
+test("thread search finds a call inside a folded group, opens it to the match, and folds it back", async () => {
+  test.setTimeout(90_000);
+  const userDataDir = await makeUserDataDir();
+  const workspacePath = await makeWorkspace("tool-groups-search-workspace");
+  const harness = await launchDesktop(userDataDir, {
+    initialWorkspaces: [workspacePath],
+    testMode: "background",
+  });
+
+  try {
+    const window = await harness.firstWindow();
+    await waitForWorkspaceByPath(window, workspacePath);
+    await createNamedThread(window, "Tool group search");
+    const sessionRef = await selectedSessionRef(window);
+    const timestamp = new Date().toISOString();
+    const transcript = window.getByTestId("transcript");
+    const toolRows = transcript.locator(".timeline-tool");
+    const groupHeader = transcript.locator(".timeline-tool-group__header");
+    const marks = transcript.locator("mark.thread-find-match, mark.thread-find-active");
+    const activeMatch = transcript.locator("mark.thread-find-active");
+
+    // A long run whose one matching call sits deep in the group, then a reply long enough to push
+    // the folded group out of view.
+    await emitTestSessionEvents(
+      harness,
+      Array.from({ length: 24 }, (_, index): SessionDriverEvent[] => {
+        const callId = `call-${index}`;
+        const [toolName, input] =
+          index === 20
+            ? ["bash", { command: "rg TOOL_NEEDLE src" }]
+            : ["read", { path: `src/file-${index}.ts` }];
+        return [
+          { type: "toolStarted", sessionRef, timestamp, toolName, callId, input },
+          { type: "toolFinished", sessionRef, timestamp, callId, success: true, output: "ok" },
+        ];
+      }).flat(),
+    );
+    await expect(groupHeader).toHaveAttribute("aria-expanded", "false");
+    await expect(toolRows).toHaveCount(0);
+    await streamAssistantDeltas(harness, window, ["Reply. " + "Long text ".repeat(600)]);
+    await waitForTimelineLayout(window);
+    await expect(groupHeader).not.toBeInViewport();
+
+    const search = window.getByPlaceholder("Search thread...");
+    const findNeedle = async () => {
+      await window.keyboard.press(desktopShortcut("f"));
+      await expect(search).toBeFocused();
+      await search.fill("TOOL_NEEDLE");
+      await expect(window.locator(".thread-search-bar__count")).toHaveText("1 / 1");
+      await expect(groupHeader).toHaveAttribute("aria-expanded", "true");
+      await expect(activeMatch).toHaveText("TOOL_NEEDLE");
+      // Not waitForTimelineLayout: search mode places every row, and its settle marker can stay
+      // "settling" after the opened group re-measures.
+      await expect(activeMatch).toBeInViewport();
+    };
+
+    // The match counts and search opens its group to navigate to it; closing folds it back.
+    await findNeedle();
+    await search.press("Escape");
+    await expect(search).toHaveCount(0);
+    await expect(groupHeader).toHaveAttribute("aria-expanded", "false");
+    await expect(toolRows).toHaveCount(0);
+    await expect(marks).toHaveCount(0);
+
+    // Folding the group by hand wins over search; going to its match opens it again.
+    await findNeedle();
+    await groupHeader.click();
+    await expect(groupHeader).toHaveAttribute("aria-expanded", "false");
+    await expect(activeMatch).toBeHidden();
+    await search.press("Enter");
+    await expect(groupHeader).toHaveAttribute("aria-expanded", "true");
+    await expect(activeMatch).toBeInViewport();
   } finally {
     await harness.close();
   }

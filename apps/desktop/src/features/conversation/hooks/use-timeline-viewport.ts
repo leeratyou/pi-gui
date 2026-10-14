@@ -409,14 +409,16 @@ export function useTimelineViewport({
   const navigateToElement = useCallback(
     (element: HTMLElement) => {
       const pane = paneRef.current;
-      if (!pane || !pane.contains(element)) return;
-      const top =
-        pane.scrollTop +
+      const row = element.closest<HTMLElement>("[data-message-id]");
+      const rowId = row?.dataset.messageId;
+      if (!pane || !row || !rowId || !pane.contains(row)) return;
+      // Anchor on the element's own row: a row that has just grown and is not measured yet
+      // (a tool group search opened) still sits at its laid-out top, so the offset holds.
+      const offsetWithinRow =
         element.getBoundingClientRect().top -
-        pane.getBoundingClientRect().top -
+        row.getBoundingClientRect().top -
         pane.clientHeight / 2;
-      const anchor = anchorAt(model.current.layout, Math.max(0, top));
-      if (anchor) model.current.state = { kind: "reading", anchor };
+      model.current.state = { kind: "reading", anchor: { rowId, offsetWithinRow } };
       model.current.pendingNavigation = true;
       model.current.userIntent = 0;
       schedule();
