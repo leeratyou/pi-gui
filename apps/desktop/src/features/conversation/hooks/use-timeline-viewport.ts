@@ -71,7 +71,7 @@ export function useTimelineViewport({
     expectedScrollTop: null as number | null,
     pendingNavigation: true,
   });
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
   const [pane, setPane] = useState<HTMLDivElement | null>(null);
   const [searchMode, setSearchMode] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -293,6 +293,10 @@ export function useTimelineViewport({
     current.activityMarker = marker;
     setShowJumpToLatest(current.newActivity);
   }, [
+    // Rerun after every scheduled frame. Outside search `placements` is a new array each render
+    // anyway; in search it is the memoized layout, so a frame that changes no geometry would
+    // otherwise leave the pane marked "settling".
+    version,
     active,
     transcriptReady,
     pane,

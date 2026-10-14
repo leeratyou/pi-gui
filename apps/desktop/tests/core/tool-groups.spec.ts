@@ -194,8 +194,7 @@ test("thread search finds a call inside a folded group, opens it to the match, a
       await expect(window.locator(".thread-search-bar__count")).toHaveText("1 / 1");
       await expect(groupHeader).toHaveAttribute("aria-expanded", "true");
       await expect(activeMatch).toHaveText("TOOL_NEEDLE");
-      // Not waitForTimelineLayout: search mode places every row, and its settle marker can stay
-      // "settling" after the opened group re-measures.
+      await waitForTimelineLayout(window);
       await expect(activeMatch).toBeInViewport();
     };
 
@@ -214,6 +213,7 @@ test("thread search finds a call inside a folded group, opens it to the match, a
     await expect(activeMatch).toBeHidden();
     await search.press("Enter");
     await expect(groupHeader).toHaveAttribute("aria-expanded", "true");
+    await waitForTimelineLayout(window);
     await expect(activeMatch).toBeInViewport();
   } finally {
     await harness.close();
