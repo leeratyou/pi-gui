@@ -486,7 +486,16 @@ function TimelineToolGroupItem({
           ) : null}
           <span className="timeline-tool__meta-inline timeline-tool-group__meta">
             <span className="timeline-tool__status-pip" aria-hidden="true" />
-            {toolGroupMeta(item.tools.length, summary)}
+            {`${item.tools.length} tools`}
+            {summary.status === "running"
+              ? " \u00b7 running"
+              : summary.failed
+                ? null
+                : " \u00b7 done"}
+            {summary.failed ? (
+              // Failures stay red while the run is still going.
+              <span className="timeline-tool-group__failed">{` \u00b7 ${summary.failed} failed`}</span>
+            ) : null}
           </span>
         </button>
       </div>
@@ -524,13 +533,6 @@ function toolGroupGlyph({ counts }: ToolGroupSummary) {
   if (counts.edits) return <DiffIcon />;
   if (counts.other) return <SparkIcon />;
   return <FileIcon />;
-}
-
-function toolGroupMeta(size: number, { status, failed }: ToolGroupSummary): string {
-  const states = [status === "running" ? "running" : "", failed ? `${failed} failed` : ""].filter(
-    Boolean,
-  );
-  return [`${size} tools`, ...(states.length ? states : ["done"])].join(" \u00b7 ");
 }
 
 function toolGlyph(toolName: string) {

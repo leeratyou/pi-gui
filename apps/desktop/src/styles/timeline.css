@@ -534,7 +534,8 @@
   background: var(--success);
 }
 
-.timeline-tool-group--error .timeline-tool-group__meta {
+.timeline-tool-group--error .timeline-tool-group__meta,
+.timeline-tool-group__failed {
   color: var(--error-ink);
 }
 

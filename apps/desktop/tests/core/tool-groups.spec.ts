@@ -87,14 +87,22 @@ test("consecutive tool calls fold into one row that expands to the ordinary tool
     await waitForTimelineLayout(window);
     const runningBox = await groupHeader.boundingBox();
 
-    // More calls stream in, one of them failing: the same row updates in place, at the same size.
+    // More calls stream in, one of them failing: the same row updates in place, at the same size,
+    // and the failure shows while the run is still going.
     await emitTestSessionEvents(harness, [
       finished("call-r1", true, "contents of a"),
       started("call-g1", "grep", { pattern: "TODO" }),
       finished("call-g1", false, "grep: no matches"),
       started("call-r2", "read", { path: "src/b.ts" }),
-      finished("call-r2", true, "R2_OUTPUT"),
     ]);
+    await expect(group.locator(".timeline-tool-group__meta")).toHaveText(
+      "4 tools · running · 1 failed",
+    );
+    await expect(group.locator(".timeline-tool-group__failed")).toBeVisible();
+    await expect(group).toHaveClass(/timeline-tool-group--running/);
+    await waitForTimelineLayout(window);
+    expect(await groupHeader.boundingBox()).toEqual(runningBox);
+    await emitTestSessionEvents(harness, [finished("call-r2", true, "R2_OUTPUT")]);
     await expect(group.locator(".timeline-tool-group__label")).toHaveText(
       "Ran 1 command, read 2 files, 1 search",
     );
