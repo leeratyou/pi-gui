@@ -9,6 +9,7 @@ import {
 } from "react";
 import type {
   DisplayTimelineItem,
+  TimelineToolCall,
   TimelineTranscriptItem,
 } from "../../../contracts/timeline-types";
 import type { ScheduledTaskOrigin } from "../../../contracts/scheduled-tasks";
@@ -22,6 +23,7 @@ import { ThreadSearchBar } from "./thread-search";
 import type { RunExtensionAction } from "./extension-card";
 import { TimelineItem } from "./timeline-item";
 import { sameRowContent, type TimelineRow } from "./timeline-layout";
+import { toolGroupId } from "./timeline-tool-groups";
 import type { OpenTurnChange } from "./turn-changes-card";
 import type { WorkspaceFileLine } from "./workspace-file-line";
 import { SparkIcon } from "../../ui/icons";
@@ -103,13 +105,27 @@ export function ConversationTimeline({
       }),
     [],
   );
+  // Only what the user chose: a group nobody toggled follows its tools (see TimelineItem), and
+  // streaming never changes a choice, so a group never opens or folds by itself.
+  const [toolGroupExpansion, setToolGroupExpansion] = useState<ReadonlyMap<string, boolean>>(
+    () => new Map(),
+  );
+  const toggleToolGroup = useCallback(
+    (id: string, expanded: boolean) =>
+      setToolGroupExpansion((current) => new Map(current).set(id, expanded)),
+    [],
+  );
   useLayoutEffect(() => {
-    const available = new Set(
-      transcript.filter((item) => item.kind === "tool").map((item) => item.callId),
-    );
+    const tools = transcript.filter((item) => item.kind === "tool");
+    const available = new Set(tools.map((item) => item.callId));
     setExpandedToolCallIds((current) => {
       if ([...current].every((id) => available.has(id))) return current;
       return new Set([...current].filter((id) => available.has(id)));
+    });
+    const groups = new Set(tools.map(toolGroupId));
+    setToolGroupExpansion((current) => {
+      if ([...current.keys()].every((id) => groups.has(id))) return current;
+      return new Map([...current].filter(([id]) => groups.has(id)));
     });
   }, [transcript]);
   const renderedMessageIndexById = useMemo(() => {
@@ -172,6 +188,8 @@ export function ConversationTimeline({
                     generation={viewport.layoutGeneration}
                     expandedToolCallIds={expandedToolCallIds}
                     onToggleToolCall={toggleToolCall}
+                    toolGroupExpansion={toolGroupExpansion}
+                    onToggleToolGroup={toggleToolGroup}
                     onViewFileInDiff={onViewFileInDiff}
                     onOpenTurnChange={onOpenTurnChange}
                     sourceMessageIndex={renderedMessageIndexById.get(item.id)}
@@ -283,6 +301,8 @@ interface MeasuredTimelineItemProps {
   readonly generation: number;
   readonly expandedToolCallIds: ReadonlySet<string>;
   readonly onToggleToolCall: (callId: string) => void;
+  readonly toolGroupExpansion: ReadonlyMap<string, boolean>;
+  readonly onToggleToolGroup: (id: string, expanded: boolean) => void;
   readonly onViewFileInDiff?: (path: string) => void;
   readonly onOpenTurnChange?: OpenTurnChange;
   readonly sourceMessageIndex?: number;
@@ -304,6 +324,8 @@ function MeasuredTimelineItemBase({
   generation,
   expandedToolCallIds,
   onToggleToolCall,
+  toolGroupExpansion,
+  onToggleToolGroup,
   onViewFileInDiff,
   onOpenTurnChange,
   sourceMessageIndex,
@@ -352,6 +374,8 @@ function MeasuredTimelineItemBase({
           item={item}
           expandedToolCallIds={expandedToolCallIds}
           onToggleToolCall={onToggleToolCall}
+          toolGroupExpansion={toolGroupExpansion}
+          onToggleToolGroup={onToggleToolGroup}
           onViewFileInDiff={onViewFileInDiff}
           onOpenTurnChange={onOpenTurnChange}
           sourceMessageIndex={sourceMessageIndex}
@@ -389,16 +413,15 @@ function isSameDisplayItem(a: DisplayTimelineItem, b: DisplayTimelineItem): bool
     );
   }
   if (a.kind === "tool" && b.kind === "tool") {
-    // input/output are rebuilt objects on every transcript update, so identity
-    // comparison would re-render every tool row per streaming tick. All visible
-    // transitions (result arrival, failure) flip status and/or the derived
-    // label/detail/metadata strings, so compare those instead.
+    return isSameTool(a, b);
+  }
+  if (a.kind === "tool-group" && b.kind === "tool-group") {
     return (
-      a.status === b.status &&
-      a.toolName === b.toolName &&
-      a.label === b.label &&
-      a.detail === b.detail &&
-      a.metadata === b.metadata
+      a.tools.length === b.tools.length &&
+      a.tools.every((tool, index) => {
+        const other = b.tools[index];
+        return other !== undefined && tool.callId === other.callId && isSameTool(tool, other);
+      })
     );
   }
   if (a.kind === "activity" && b.kind === "activity") {
@@ -422,6 +445,20 @@ function isSameDisplayItem(a: DisplayTimelineItem, b: DisplayTimelineItem): bool
   return false;
 }
 
+// input/output are rebuilt objects on every transcript update, so identity
+// comparison would re-render every tool row per streaming tick. All visible
+// transitions (result arrival, failure) flip status and/or the derived
+// label/detail/metadata strings, so compare those instead.
+function isSameTool(a: TimelineToolCall, b: TimelineToolCall): boolean {
+  return (
+    a.status === b.status &&
+    a.toolName === b.toolName &&
+    a.label === b.label &&
+    a.detail === b.detail &&
+    a.metadata === b.metadata
+  );
+}
+
 function rowBottom(row: TimelineRow | undefined): number {
   return row ? row.top + row.height : 0;
 }
@@ -439,6 +476,8 @@ function areMeasuredTimelineItemPropsEqual(
     prev.onHeightChange === next.onHeightChange &&
     prev.expandedToolCallIds === next.expandedToolCallIds &&
     prev.onToggleToolCall === next.onToggleToolCall &&
+    prev.toolGroupExpansion === next.toolGroupExpansion &&
+    prev.onToggleToolGroup === next.onToggleToolGroup &&
     prev.onViewFileInDiff === next.onViewFileInDiff &&
     prev.onOpenTurnChange === next.onOpenTurnChange &&
     prev.sourceMessageIndex === next.sourceMessageIndex &&

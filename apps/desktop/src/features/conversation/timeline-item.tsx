@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useContext, useMemo, useRef } from "react";
 import type {
   SessionTranscriptCustomMessage,
   SessionTranscriptMessage,
@@ -7,12 +7,16 @@ import type {
   DisplayTimelineItem,
   TimelineActivity,
   TimelineToolCall,
+  TimelineToolGroup,
   TimelineSummary,
   TimelineTurnMarker,
 } from "../../../contracts/timeline-types";
 import type { ScheduledTaskOrigin } from "../../../contracts/scheduled-tasks";
 import { extensionToolRowLabel } from "../../../contracts/tool-labels";
-import { useExtensionToolLabel } from "../extensions/extension-tool-labels";
+import {
+  ExtensionToolLabelsContext,
+  useExtensionToolLabel,
+} from "../extensions/extension-tool-labels";
 import {
   AnnotationMarkers,
   type AnnotationMarker,
@@ -23,6 +27,12 @@ import { SentAnnotations } from "./annotations/sent-annotations";
 import { ExtensionCardItem, type RunExtensionAction } from "./extension-card";
 import { ImageAttachmentThumb } from "./image-attachment-thumb";
 import { MessageMarkdown } from "./message-markdown";
+import {
+  isWriteTool,
+  summarizeToolGroup,
+  toolInputPath,
+  type ToolGroupSummary,
+} from "./timeline-tool-groups";
 import { stringifyToolValue, toolOutputImageSrc, toolOutputImages } from "./tool-output-images";
 import { TurnChangesCard, type OpenTurnChange } from "./turn-changes-card";
 import type { WorkspaceFileLine } from "./workspace-file-line";
@@ -42,6 +52,8 @@ export function TimelineItem({
   item,
   expandedToolCallIds,
   onToggleToolCall,
+  toolGroupExpansion,
+  onToggleToolGroup,
   onViewFileInDiff,
   sourceMessageIndex,
   onForkFromMessage,
@@ -56,6 +68,8 @@ export function TimelineItem({
   readonly item: DisplayTimelineItem;
   readonly expandedToolCallIds?: ReadonlySet<string>;
   readonly onToggleToolCall?: (callId: string) => void;
+  readonly toolGroupExpansion?: ReadonlyMap<string, boolean>;
+  readonly onToggleToolGroup?: (id: string, expanded: boolean) => void;
   readonly onViewFileInDiff?: (path: string) => void;
   readonly sourceMessageIndex?: number;
   readonly onForkFromMessage?: (messageIndex: number, preview?: string) => void;
@@ -93,6 +107,22 @@ export function TimelineItem({
           item={item}
           expanded={expandedToolCallIds?.has(item.callId) ?? false}
           onToggle={onToggleToolCall}
+          onViewFileInDiff={onViewFileInDiff}
+        />
+      );
+    case "tool-group":
+      return (
+        <TimelineToolGroupItem
+          item={item}
+          // A run that grew around a tool whose output is open stays open, so the output the
+          // user is reading never folds away under them.
+          expanded={
+            toolGroupExpansion?.get(item.id) ??
+            item.tools.some((tool) => expandedToolCallIds?.has(tool.callId))
+          }
+          onToggle={onToggleToolGroup}
+          expandedToolCallIds={expandedToolCallIds}
+          onToggleToolCall={onToggleToolCall}
           onViewFileInDiff={onViewFileInDiff}
         />
       );
@@ -279,7 +309,7 @@ function TimelineToolCallItem({
     extensionLabel === undefined
       ? buildCompactLabel(item, diffStats)
       : extensionToolRowLabel(extensionLabel, item.input);
-  const filePath = writeTool ? extractFilename(item.input) || undefined : undefined;
+  const filePath = writeTool ? toolInputPath(item.input) || undefined : undefined;
   const diffLanguage = diffText && filePath ? extensionToLanguage(filePath) : undefined;
   const inlineDetail = item.status === "error" ? item.detail : undefined;
   const images = toolOutputImages(item.output);
@@ -358,7 +388,7 @@ function TimelineToolCallItem({
             <>
               <div className="timeline-tool__diff-header">
                 <span className="timeline-tool__diff-filename">
-                  {extractFilename(item.input)}
+                  {toolInputPath(item.input)}
                   {diffStats ? (
                     <span className="timeline-tool__diff-stats">
                       {" "}
@@ -399,8 +429,108 @@ function TimelineToolCallItem({
   );
 }
 
-function isWriteTool(toolName: string): boolean {
-  return /write|edit|patch|apply/i.test(toolName);
+/**
+ * A run of consecutive tool calls as one row. The collapsed header keeps one line whatever the
+ * run does, so streaming calls never move it: its summary, the call still running and a status
+ * badge that says "running" or how many failed. Expanded, each call is the ordinary tool row.
+ */
+function TimelineToolGroupItem({
+  item,
+  expanded,
+  onToggle,
+  expandedToolCallIds,
+  onToggleToolCall,
+  onViewFileInDiff,
+}: {
+  readonly item: TimelineToolGroup;
+  readonly expanded: boolean;
+  readonly onToggle?: (id: string, expanded: boolean) => void;
+  readonly expandedToolCallIds?: ReadonlySet<string>;
+  readonly onToggleToolCall?: (callId: string) => void;
+  readonly onViewFileInDiff?: (path: string) => void;
+}) {
+  const extensionLabels = useContext(ExtensionToolLabelsContext);
+  const summary = useMemo(
+    () => summarizeToolGroup(item.tools, extensionLabels),
+    [item.tools, extensionLabels],
+  );
+  // Images a call made show while the group is collapsed too, as they do on a collapsed row.
+  const images = expanded
+    ? []
+    : item.tools.flatMap((tool) =>
+        toolOutputImages(tool.output).map((image, index) => ({ tool, image, index })),
+      );
+  return (
+    <section
+      className={`timeline-tool-group timeline-tool-group--${summary.status}`}
+      data-testid="timeline-tool-group"
+    >
+      <div className="timeline-tool__header-row">
+        <span className="timeline-tool__glyph" aria-hidden="true">
+          {toolGroupGlyph(summary)}
+        </span>
+        <button
+          className="timeline-tool-group__header"
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => onToggle?.(item.id, !expanded)}
+        >
+          <span
+            className={`timeline-tool__chevron ${expanded ? "timeline-tool__chevron--expanded" : ""}`}
+          >
+            <ChevronRightIcon />
+          </span>
+          <span className="timeline-tool-group__label">{summary.label}</span>
+          {summary.running ? (
+            <span className="timeline-tool-group__running">{summary.running.label}</span>
+          ) : null}
+          <span className="timeline-tool__meta-inline timeline-tool-group__meta">
+            <span className="timeline-tool__status-pip" aria-hidden="true" />
+            {toolGroupMeta(item.tools.length, summary)}
+          </span>
+        </button>
+      </div>
+      {images.length > 0 ? (
+        <div className="timeline-tool__images" data-testid="timeline-tool-images">
+          {images.map(({ tool, image, index }) => (
+            <ImageAttachmentThumb
+              className="timeline-tool__image"
+              key={`${tool.callId}:${index}`}
+              name={`${tool.toolName} image ${index + 1}`}
+              src={toolOutputImageSrc(image)}
+            />
+          ))}
+        </div>
+      ) : null}
+      {expanded ? (
+        <div className="timeline-tool-group__items">
+          {item.tools.map((tool) => (
+            <TimelineToolCallItem
+              key={tool.callId}
+              item={tool}
+              expanded={expandedToolCallIds?.has(tool.callId) ?? false}
+              onToggle={onToggleToolCall}
+              onViewFileInDiff={onViewFileInDiff}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function toolGroupGlyph({ counts }: ToolGroupSummary) {
+  if (counts.commands) return <TerminalIcon />;
+  if (counts.edits) return <DiffIcon />;
+  if (counts.other) return <SparkIcon />;
+  return <FileIcon />;
+}
+
+function toolGroupMeta(size: number, { status, failed }: ToolGroupSummary): string {
+  const states = [status === "running" ? "running" : "", failed ? `${failed} failed` : ""].filter(
+    Boolean,
+  );
+  return [`${size} tools`, ...(states.length ? states : ["done"])].join(" \u00b7 ");
 }
 
 function toolGlyph(toolName: string) {
@@ -421,23 +551,12 @@ function buildCompactLabel(
   diffStats: { added: number; removed: number } | undefined,
 ): string {
   if (isWriteTool(item.toolName)) {
-    const filename = extractFilename(item.input);
+    const filename = toolInputPath(item.input);
     if (filename) {
       return `Edited ${shortenPath(filename)}`;
     }
   }
   return item.label;
-}
-
-function extractFilename(input: unknown): string {
-  if (typeof input === "object" && input !== null) {
-    const record = input as Record<string, unknown>;
-    const path = record.file_path ?? record.filePath ?? record.path ?? record.filename;
-    if (typeof path === "string") {
-      return path;
-    }
-  }
-  return "";
 }
 
 function shortenPath(filePath: string): string {

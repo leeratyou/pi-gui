@@ -79,4 +79,15 @@ export interface TimelineTurnChanges {
   readonly turn: TurnChangeSummary;
 }
 
-export type DisplayTimelineItem = TimelineTranscriptItem | TimelineTurnMarker | TimelineTurnChanges;
+/**
+ * A derived, view-only row folding a run of consecutive tool calls into one collapsible summary.
+ * Its id comes from the run's first call, so it stays the same row while the run grows.
+ */
+export interface TimelineToolGroup {
+  readonly kind: "tool-group";
+  readonly id: string;
+  readonly tools: readonly TimelineToolCall[];
+}
+
+export type DisplayTimelineItem =
+  TimelineTranscriptItem | TimelineTurnMarker | TimelineTurnChanges | TimelineToolGroup;

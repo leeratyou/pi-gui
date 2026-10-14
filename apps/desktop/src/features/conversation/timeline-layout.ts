@@ -30,6 +30,7 @@ export function estimateRowHeight(item: DisplayTimelineItem, width: number): num
       return 50 + (bodyRows ? 12 + bodyRows * 34 : 0);
     }
     case "tool":
+    case "tool-group":
       return 52;
     case "summary":
       return item.presentation === "divider" ? 44 : 38;
@@ -68,6 +69,15 @@ export function sameRowContent(a: DisplayTimelineItem, b: DisplayTimelineItem): 
         a.detail === b.detail &&
         a.label === b.label &&
         a.metadata === b.metadata
+      );
+    case "tool-group":
+      return (
+        b.kind === a.kind &&
+        a.tools.length === b.tools.length &&
+        a.tools.every((tool, index) => {
+          const other = b.tools[index];
+          return other !== undefined && sameRowContent(tool, other);
+        })
       );
     case "summary":
       return b.kind === a.kind && a.label === b.label && a.presentation === b.presentation;

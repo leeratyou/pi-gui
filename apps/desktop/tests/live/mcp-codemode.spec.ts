@@ -60,6 +60,12 @@ test("a real model calls an MCP tool added in Settings, through code mode", asyn
       window.locator(".timeline-item--assistant .message__content").last(),
     ).toContainText("MCP_DONE", { timeout: 180_000 });
     expect(readFileSync(join(markerDir, "called.txt"), "utf8")).toContain("LIVE_MCP_MARKER");
+    // Consecutive calls fold into one collapsed group; open it to see each call's row.
+    for (const header of await window
+      .locator('.timeline-tool-group__header[aria-expanded="false"]')
+      .all()) {
+      await header.click();
+    }
     await expect(
       window.locator(".timeline-tool").filter({ hasText: /code ?mode/i }),
     ).not.toHaveCount(0);

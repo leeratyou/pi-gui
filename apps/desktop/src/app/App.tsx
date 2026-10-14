@@ -18,6 +18,7 @@ import { useDesktopCommands } from "./use-desktop-commands";
 import { useRunningLabel } from "../features/conversation/hooks/use-running-label";
 import { useTimelineViewport } from "../features/conversation/hooks/use-timeline-viewport";
 import { buildDisplayTimelineItems } from "../features/conversation/timeline-turns";
+import { groupToolRuns } from "../features/conversation/timeline-tool-groups";
 import { useTurnChanges } from "../features/conversation/hooks/use-turn-changes";
 import { formatRelativeTime } from "../lib/string-utils";
 import { restoreTopmostDialogFocus } from "../ui/dialog-focus";
@@ -287,10 +288,12 @@ export default function App() {
   });
   const timelineRows = useMemo(
     () =>
-      buildDisplayTimelineItems(pins.timeline, {
-        lastTurnRunning: selectedSessionRunning,
-        turnChanges: turnChanges.turns,
-      }),
+      groupToolRuns(
+        buildDisplayTimelineItems(pins.timeline, {
+          lastTurnRunning: selectedSessionRunning,
+          turnChanges: turnChanges.turns,
+        }),
+      ),
     [pins.timeline, selectedSessionRunning, turnChanges.turns],
   );
   const viewport = useTimelineViewport({

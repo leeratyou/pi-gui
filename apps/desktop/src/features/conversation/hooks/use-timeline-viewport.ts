@@ -285,7 +285,8 @@ export function useTimelineViewport({
     markLayout(pane, measured && !current.frame ? "settled" : "settling");
     if (current.key) saved.current.set(current.key, destination(current.state));
     const last = rows.at(-1);
-    const marker = `${rows.length}:${last?.id ?? ""}:${last?.kind === "message" ? last.text.length : last?.kind === "tool" ? last.status : ""}`;
+    const lastTool = last?.kind === "tool-group" ? last.tools.at(-1) : last;
+    const marker = `${rows.length}:${last?.id ?? ""}:${last?.kind === "message" ? last.text.length : lastTool?.kind === "tool" ? `${lastTool.callId}:${lastTool.status}` : ""}`;
     if (destination(current.state).kind === "following") current.newActivity = false;
     else if (current.activityMarker && marker !== current.activityMarker)
       current.newActivity = true;
