@@ -17,6 +17,7 @@ import {
 import { SettingsSelect } from "../features/settings/settings-controls";
 import type { McpSettingsActions } from "../features/settings/settings-mcp-section";
 import { SecondarySurface } from "./secondary-surface";
+import { AUTO_PLAN_EXTENSION_PATH } from "../../contracts/auto-plan";
 
 interface SecondarySurfacesProps {
   readonly api: NonNullable<typeof window.piApp>;
@@ -73,6 +74,10 @@ export function SecondarySurfaces({
     ? snapshot.runtimeByWorkspace[settingsWorkspace.id]
     : undefined;
   const settingsModelRuntime = getEffectiveModelRuntime(snapshot, settingsWorkspace);
+  // Auto plan is a pi-gui built-in, so its Settings switch is the built-in's app-wide switch.
+  const autoPlanEnabled = settingsRuntime?.extensions.find(
+    (extension) => extension.path === AUTO_PLAN_EXTENSION_PATH,
+  )?.enabled;
   const skillsRuntime = skillsWorkspace
     ? snapshot.runtimeByWorkspace[skillsWorkspace.id]
     : undefined;
@@ -144,6 +149,17 @@ export function SecondarySurfaces({
       api.setEnableSkillCommands(settingsWorkspace.id, enabled),
     ).catch((error: unknown) => {
       console.error("[renderer] setEnableSkillCommands failed", error);
+    });
+  };
+
+  const handleToggleAutoPlan = (enabled: boolean) => {
+    if (!settingsWorkspace) {
+      return;
+    }
+    void updateSnapshot(setSnapshot, () =>
+      api.setExtensionEnabled(settingsWorkspace.id, AUTO_PLAN_EXTENSION_PATH, enabled),
+    ).catch((error: unknown) => {
+      console.error("[renderer] setExtensionEnabled failed", error);
     });
   };
 
@@ -469,6 +485,8 @@ export function SecondarySurfaces({
           onSetThemePresetId={handleSetThemePresetId}
           onSetThinkingLevel={handleSetThinkingLevel}
           onToggleSkillCommands={handleToggleSkillCommands}
+          autoPlanEnabled={autoPlanEnabled}
+          onToggleAutoPlan={handleToggleAutoPlan}
           mcpActions={mcpActions}
           onSetEnableTransparency={(enabled) => {
             void updateSnapshot(setSnapshot, () => api.setEnableTransparency(enabled)).catch(

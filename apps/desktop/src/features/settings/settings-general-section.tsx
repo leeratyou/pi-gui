@@ -11,6 +11,9 @@ interface SettingsGeneralSectionProps {
   readonly onSetModelSettingsScopeMode: (mode: ModelSettingsScopeMode) => void;
   readonly onSetIntegratedTerminalShell: (shellPath: string) => void;
   readonly onToggleSkillCommands: (enabled: boolean) => void;
+  /** The auto plan built-in's switch; undefined until the workspace's runtime has loaded. */
+  readonly autoPlanEnabled?: boolean;
+  readonly onToggleAutoPlan: (enabled: boolean) => void;
 }
 
 export function SettingsGeneralSection({
@@ -20,6 +23,8 @@ export function SettingsGeneralSection({
   onSetModelSettingsScopeMode,
   onSetIntegratedTerminalShell,
   onToggleSkillCommands,
+  autoPlanEnabled,
+  onToggleAutoPlan,
 }: SettingsGeneralSectionProps) {
   const [terminalShellDraft, setTerminalShellDraft] = useState(integratedTerminalShell);
 
@@ -58,6 +63,17 @@ export function SettingsGeneralSection({
             checked={runtime?.settings.enableSkillCommands ?? true}
             label="Enable skill slash commands"
             onChange={onToggleSkillCommands}
+          />
+        </SettingsRow>
+        <SettingsRow
+          title="Auto plan"
+          description="A small model checks each message first. When the task needs a plan, pi writes it as a table, then implements it."
+        >
+          <SettingsSwitch
+            checked={autoPlanEnabled ?? true}
+            disabled={autoPlanEnabled === undefined}
+            label="Enable auto plan"
+            onChange={onToggleAutoPlan}
           />
         </SettingsRow>
       </SettingsGroup>

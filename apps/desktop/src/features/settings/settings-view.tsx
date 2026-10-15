@@ -46,6 +46,8 @@ interface SettingsViewProps {
     thinkingLevel: RuntimeSettingsSnapshot["defaultThinkingLevel"],
   ) => void;
   readonly onToggleSkillCommands: (enabled: boolean) => void;
+  readonly autoPlanEnabled?: boolean;
+  readonly onToggleAutoPlan: (enabled: boolean) => void;
   readonly onSetScopedModelPatterns: (patterns: readonly string[]) => void;
   readonly onLoginProvider: (providerId: string) => void;
   readonly onLogoutProvider: (providerId: string) => void;
@@ -82,6 +84,8 @@ export function SettingsView({
   onSetDefaultModel,
   onSetThinkingLevel,
   onToggleSkillCommands,
+  autoPlanEnabled,
+  onToggleAutoPlan,
   onSetScopedModelPatterns,
   onLoginProvider,
   onLogoutProvider,
@@ -156,6 +160,8 @@ export function SettingsView({
               onSetModelSettingsScopeMode={onSetModelSettingsScopeMode}
               onSetIntegratedTerminalShell={onSetIntegratedTerminalShell}
               onToggleSkillCommands={onToggleSkillCommands}
+              autoPlanEnabled={autoPlanEnabled}
+              onToggleAutoPlan={onToggleAutoPlan}
             />
           ) : null}
 

@@ -46,6 +46,8 @@ import {
   createScheduledTaskRuntimeTools,
   type ScheduledTaskRuntimeBridge,
 } from "./scheduled-tasks/scheduled-task-runtime";
+import { createAutoPlanExtension } from "./auto-plan/auto-plan-runtime";
+import { AUTO_PLAN_EXTENSION_NAME } from "../contracts/auto-plan";
 import { getChangedFiles, getFileDiff, stageFile } from "./platform/files/app-store-diff";
 import { listWorkspaceFiles, readWorkspaceFile } from "./platform/files/app-store-files";
 import { resolveExistingWorkspacePath } from "./platform/files/workspace-paths";
@@ -1030,6 +1032,13 @@ app
               return undefined;
             }
           }),
+        },
+        {
+          name: AUTO_PLAN_EXTENSION_NAME,
+          displayName: "Auto plan",
+          description:
+            "Checks each message with a small model; when a task needs a plan, pi writes it as a table and implements it",
+          factory: createAutoPlanExtension(),
         },
       ],
     };
