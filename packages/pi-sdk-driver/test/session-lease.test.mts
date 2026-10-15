@@ -11,6 +11,8 @@ import {
   defaultIsPidAlive,
   isLeaseDead,
   isSameHolder,
+  isSameHost,
+  machineHostId,
   leaseBlocksBinding,
   readLeaseSnapshot,
   refreshLeaseFile,
@@ -64,6 +66,33 @@ await test("same-host lease is dead when its pid is gone, alive when pid runs an
   const alive = isLeaseDead(snap, { now: 20_000, ttlMs: TTL, self: SELF, isPidAlive: () => true });
   assert.equal(dead, true);
   assert.equal(alive, false);
+});
+
+await test("same machine id wins over a renamed hostname, so a dead holder is reclaimable", () => {
+  const self = { pid: 4242, hostname: "Mac-082.home", hostId: "machine-a" };
+  const snap = foreignSnapshot({ hostname: "Mac", hostId: "machine-a" }, 10_000);
+  assert.ok(isSameHost(snap.info, self));
+  assert.equal(isLeaseDead(snap, { now: 20_000, ttlMs: TTL, self, isPidAlive: () => false }), true);
+  assert.equal(isLeaseDead(snap, { now: 20_000, ttlMs: TTL, self, isPidAlive: () => true }), false);
+});
+
+await test("different machine ids are different hosts even when hostnames match", () => {
+  const self = { pid: 4242, hostname: "box", hostId: "machine-a" };
+  assert.ok(!isSameHost({ pid: 1, hostname: "box", hostId: "machine-b" }, self));
+  // Older leases without a hostId fall back to hostname.
+  assert.ok(isSameHost({ pid: 1, hostname: "box" }, self));
+});
+
+await test("buildOwnLease records hostId and it round-trips through the lease file", async () => {
+  await withTempDir(async (dir) => {
+    const leasePath = join(dir, "s.jsonl.lease");
+    await writeLeaseFile(leasePath, buildOwnLease({ ...SELF, hostId: "machine-a" }, 1_000));
+    assert.equal((await readLeaseSnapshot(leasePath))?.info.hostId, "machine-a");
+  });
+});
+
+await test("machineHostId is stable across calls", () => {
+  assert.equal(machineHostId(), machineHostId());
 });
 
 await test("cross-host lease falls back to TTL: fresh mtime alive, stale mtime dead", () => {

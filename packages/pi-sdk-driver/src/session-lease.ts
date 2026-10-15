@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { link, open, readFile, rm, stat, utimes } from "node:fs/promises";
 import { hostname } from "node:os";
 import { writeJsonFileAtomic } from "@pi-gui/catalogs/node/atomic-write";
@@ -22,6 +24,10 @@ import { isMissingFileError } from "@pi-gui/catalogs/node";
  * A lease is dead (and may be taken over) when we can prove the holder is
  * gone: on the same host, when its pid is no longer alive; on any host, when
  * its heartbeat has not refreshed the file mtime within the TTL.
+ *
+ * "Same host" prefers a stable machine id over the hostname, because macOS
+ * renames the host with the network (e.g. "Mac" -> "Mac-082.home"), which
+ * would otherwise hide a dead same-host holder until the TTL ran out.
  */
 
 export const LEASE_SUFFIX = ".lease";
@@ -42,6 +48,8 @@ export interface LeaseInfo {
   readonly surface: string;
   /** Per-process owner token. Absent in leases written before tokens existed. */
   readonly token?: string;
+  /** Stable machine id. Absent in older leases or where it cannot be read. */
+  readonly hostId?: string;
 }
 
 export interface LeaseSnapshot {
@@ -54,6 +62,7 @@ export interface LeaseIdentity {
   readonly pid: number;
   readonly hostname: string;
   readonly token?: string;
+  readonly hostId?: string;
 }
 
 export interface LeaseStalenessOptions {
@@ -82,7 +91,70 @@ export function sessionLeasePath(sessionFile: string): string {
 }
 
 export function currentLeaseIdentity(): LeaseIdentity {
-  return { pid: process.pid, hostname: hostname(), token: randomUUID() };
+  const hostId = machineHostId();
+  return {
+    pid: process.pid,
+    hostname: hostname(),
+    token: randomUUID(),
+    ...(hostId ? { hostId } : {}),
+  };
+}
+
+let cachedHostId: string | null | undefined;
+
+/** A stable per-machine id that survives hostname changes, or undefined. */
+export function machineHostId(): string | undefined {
+  if (cachedHostId === undefined) {
+    cachedHostId = readMachineHostId() ?? null;
+  }
+  return cachedHostId ?? undefined;
+}
+
+function readMachineHostId(): string | undefined {
+  try {
+    if (process.platform === "darwin") {
+      const out = execFileSync("ioreg", ["-rd1", "-c", "IOPlatformExpertDevice"], {
+        encoding: "utf8",
+        timeout: 2_000,
+      });
+      return /"IOPlatformUUID"\s*=\s*"([^"]+)"/.exec(out)?.[1];
+    }
+    if (process.platform === "win32") {
+      const out = execFileSync(
+        "reg",
+        ["query", "HKLM\\SOFTWARE\\Microsoft\\Cryptography", "/v", "MachineGuid"],
+        { encoding: "utf8", timeout: 2_000, windowsHide: true },
+      );
+      return /MachineGuid\s+REG_SZ\s+(\S+)/.exec(out)?.[1];
+    }
+    for (const path of ["/etc/machine-id", "/var/lib/dbus/machine-id"]) {
+      try {
+        const id = readFileSync(path, "utf8").trim();
+        if (id) {
+          return id;
+        }
+      } catch {
+        // Try the next location.
+      }
+    }
+  } catch {
+    // Fall back to hostname comparison.
+  }
+  return undefined;
+}
+
+/** Machine ids decide when both sides have one; otherwise fall back to hostname. */
+export function isSameHost(info: LeaseInfo | LeaseIdentity, self: LeaseIdentity): boolean {
+  if (info.hostId && self.hostId) {
+    return info.hostId === self.hostId;
+  }
+  return info.hostname === self.hostname;
+}
+
+/** Whether a lease holder runs on this machine (for user-facing guidance). */
+export function isLeaseHolderOnThisHost(holder: LeaseInfo): boolean {
+  const hostId = machineHostId();
+  return isSameHost(holder, { pid: process.pid, hostname: hostname(), ...(hostId ? { hostId } : {}) });
 }
 
 /** Tokens decide ownership when both sides have one; older leases fall back to pid + host. */
@@ -90,7 +162,7 @@ export function isSameHolder(info: LeaseInfo | LeaseIdentity, self: LeaseIdentit
   if (info.token && self.token) {
     return info.token === self.token;
   }
-  return info.pid === self.pid && info.hostname === self.hostname;
+  return info.pid === self.pid && isSameHost(info, self);
 }
 
 /** Whether a running process with `pid` exists (best-effort, same-host only). */
@@ -113,8 +185,7 @@ export function defaultIsPidAlive(pid: number): boolean {
  * or the lease has not been refreshed within the TTL.
  */
 export function isLeaseDead(snapshot: LeaseSnapshot, opts: LeaseStalenessOptions): boolean {
-  const sameHost = snapshot.info.hostname === opts.self.hostname;
-  if (sameHost && !opts.isPidAlive(snapshot.info.pid)) {
+  if (isSameHost(snapshot.info, opts.self) && !opts.isPidAlive(snapshot.info.pid)) {
     return true;
   }
   return opts.now - snapshot.mtimeMs > opts.ttlMs;
@@ -157,6 +228,7 @@ function parseLeaseInfo(raw: string): LeaseInfo | undefined {
     startedAt: parsed.startedAt,
     surface: parsed.surface,
     ...(typeof parsed.token === "string" ? { token: parsed.token } : {}),
+    ...(typeof parsed.hostId === "string" ? { hostId: parsed.hostId } : {}),
   };
 }
 
@@ -176,6 +248,7 @@ export function buildOwnLease(self: LeaseIdentity, now: number): LeaseInfo {
     startedAt: new Date(now).toISOString(),
     surface: PI_GUI_LEASE_SURFACE,
     ...(self.token ? { token: self.token } : {}),
+    ...(self.hostId ? { hostId: self.hostId } : {}),
   };
 }
 
